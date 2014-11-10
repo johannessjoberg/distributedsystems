@@ -8,10 +8,9 @@ def board(ip, port, sockobj, thiscommhandle, listencommhandle):
         stopcomm(thiscommhandle)
     elif msgheader.startswith( 'POST' ):
         print "Recieved POST: "
-        import re
-        match = re.match("comment=.", msgheader)
-        if match:
-        print match.group(0)
+        lastIndex = msgheader.rfind("comment=") + len("comment=")
+        print "lastindex:" + str(lastIndex)
+        sendData(msgheader[lastIndex:])
     else:
         print "Recieved something else: "
 
@@ -22,7 +21,7 @@ if callfunc == 'initialize':
     # Running remotely (assuming that we pass input argument only remotely):
     # whenever this vessel gets a connection on its IPaddress:Clearinghouseport it'll call function board
     elif len(callargs) == 1:
-            port = int(callargs[0])
+        port = int(callargs[0])
         ip = getmyip()
 
   # Running locally:
@@ -30,4 +29,14 @@ if callfunc == 'initialize':
     else:
         port = 12345
         ip = '127.0.0.1'
-  listencommhandle = waitforconn(ip,port,board)
+
+mycontext["serverlist"] = []
+for server in file(servers.txt)
+    mycontext["serverlist"].append(server.strip())
+listencommhandle = waitforconn(ip,port,board)
+
+def sendData(data):
+    print "Sending data: " + data
+    for server in mycontext["serverlist"]
+        print "Sending data to: " + server
+
