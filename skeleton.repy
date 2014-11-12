@@ -1,18 +1,27 @@
 def board(ip, port, sockobj, thiscommhandle, listencommhandle):
     msgheader = sockobj.recv(1024) # Receive message,
+    print "Recieved msgheader: " + msgheader
     # React depending on message type: HTTP GET or POST, or some other type of communication.
     if msgheader.startswith( 'GET' ):
-        htmlresponse = """<!DOCTYPE html> <html> <head> <meta content="text/html; charset=utf-8" http-equiv="content-type"> <title>Blackboard GroupName</title> </head> <body> <h2> Board Content</h2> <p>Board board board board</p> <br> <h3>Submit to board<h3> <textarea rows="4" cols="50" name="comment" form="usrform"></textarea> <form action="" id="usrform" method="post"> <input type="submit"> </form> </body> </html>"""
-        sockobj.send("HTTP/1.1 200 OK\r\nContent-type: text/html\r\n" + \
-        "Content-length: %i\r\n\r\n%s" % (len(htmlresponse), htmlresponse))
-        stopcomm(thiscommhandle)
+        sendHtml(sockobj, thiscommhandle)
     elif msgheader.startswith( 'POST' ):
-        print "Recieved POST: "
         lastIndex = msgheader.rfind("comment=") + len("comment=")
-        print "lastindex:" + str(lastIndex)
         sendData(msgheader[lastIndex:])
-    else:
-        print "Recieved something else: "
+        sendHtml(sockobj, thiscommhandle)
+    elif msgheader.startswith("MESSAGE"):
+        lastIndex = msgheader.rfind("MESSAGE") + len("MESSAGE")
+        print "Recieved MESSAGE: " + msgheader[lastIndex:]
+        mycontext["data"].append(msgheader[lastIndex:])
+
+def sendHtml(sockobj, thiscommhandle):
+    data = "<br>".join(mycontext["data"])
+    print "Data in board: " + data
+    htmlresponse = """<!DOCTYPE html> <html> <head> <meta content="text/html; charset=utf-8" http-equiv="content-type"> <title>Blackboard GroupName</title> </head> <body> <h2> Board Content</h2> <p>"""
+    htmlresponse += data
+    htmlresponse += """</p> <br> <h3>Submit to board<h3> <textarea rows="4" cols="50" name="comment" form="usrform"></textarea> <form action="" id="usrform" method="post"> <input type="submit"> </form> </body> </html>"""
+    sockobj.send("HTTP/1.1 200 OK\r\nContent-type: text/html\r\n" + \
+        "Content-length: %i\r\n\r\n%s" % (len(htmlresponse), htmlresponse))
+    stopcomm(thiscommhandle)
 
 if callfunc == 'initialize':
     if len(callargs) > 1:
@@ -29,14 +38,21 @@ if callfunc == 'initialize':
     else:
         port = 12345
         ip = '127.0.0.1'
+mycontext["port"] = port
 
 mycontext["serverlist"] = []
-for server in file(servers.txt)
+for server in file("servers.txt"):
     mycontext["serverlist"].append(server.strip())
+
+mycontext["data"] = []
+
 listencommhandle = waitforconn(ip,port,board)
 
 def sendData(data):
     print "Sending data: " + data
-    for server in mycontext["serverlist"]
-        print "Sending data to: " + server
-
+    for server in mycontext["serverlist"]:
+        print "Sending data to: " + server + ":" + str(mycontext["port"])
+        socket = openconn(server, mycontext["port"])
+        socket.send("MESSAGE" + data)
+        socket.close()
+        sleep(.5)
