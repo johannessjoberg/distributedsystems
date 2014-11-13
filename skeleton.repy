@@ -9,12 +9,11 @@ def board(ip, port, sockobj, thiscommhandle, listencommhandle):
         sendData(msgheader[lastIndex:])
         sendHtml(sockobj, thiscommhandle)
     elif msgheader.startswith("MESSAGE"):
-        lastIndex = msgheader.rfind("MESSAGE") + len("MESSAGE")
-        print "Recieved MESSAGE: " + msgheader[lastIndex:]
-        mycontext["data"].append(msgheader[lastIndex:])
+        print "Recieved MESSAGE: " + msgheader
+        addData(msgheader[len("MESSAGE"):])
 
 def sendHtml(sockobj, thiscommhandle):
-    data = "<br>".join(mycontext["data"])
+    data = "<br>".join(getData())
     print "Data in board: " + data
     htmlresponse = """<!DOCTYPE html> <html> <head> <meta content="text/html; charset=utf-8" http-equiv="content-type"> <title>Blackboard GroupName</title> </head> <body> <h2> Board Content</h2> <p>"""
     htmlresponse += data
@@ -42,17 +41,25 @@ mycontext["port"] = port
 
 mycontext["serverlist"] = []
 for server in file("servers.txt"):
-    mycontext["serverlist"].append(server.strip())
+    if server != getmyip():
+        mycontext["serverlist"].append(server.strip())
 
 mycontext["data"] = []
 
 listencommhandle = waitforconn(ip,port,board)
 
+def addData(data):
+    mycontext["data"].append(data)
+
+def getData():
+    return mycontext["data"]
+
 def sendData(data):
+    addData(data)
     print "Sending data: " + data
     for server in mycontext["serverlist"]:
         print "Sending data to: " + server + ":" + str(mycontext["port"])
         socket = openconn(server, mycontext["port"])
         socket.send("MESSAGE" + data)
         socket.close()
-        sleep(.5)
+        #sleep(.5)
