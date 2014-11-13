@@ -13,6 +13,7 @@ def board(ip, port, sockobj, thiscommhandle, listencommhandle):
         print "Recieved MESSAGE: " + msgheader
         addData(msgheader[len("MESSAGE"):])
 
+#sends the html on the socket
 def sendHtml(sockobj, thiscommhandle):
     #adding linebreak to every post in the board
     data = "<br>".join(getData())
@@ -39,6 +40,7 @@ if callfunc == 'initialize':
     else:
         port = 12345
         ip = '127.0.0.1'
+
 #saving the port in my context so that it can be used sendData function        
 mycontext["port"] = port
 
@@ -54,15 +56,16 @@ mycontext["data"] = []
 
 listencommhandle = waitforconn(ip,port,board)
 
-#adding data the list who acts as the board
+#adds parameter data to the list data(who acts as the board)
 def addData(data):
     mycontext["data"].append(data)
 
-#just returns the board
+#return the list data(who acts as the board)
 def getData():
     return mycontext["data"]
 
-#sending data to every IP in serverlist
+#sends parameter data to every vessel in the list serverlist
+#also adds to own boardlist
 def sendData(data):
     addData(data)
     print "Sending data: " + data
