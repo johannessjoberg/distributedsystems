@@ -8,6 +8,7 @@ def board(ip, port, sockobj, thiscommhandle, listencommhandle):
         lastIndex = msgheader.rfind("comment=") + len("comment=")
         sendData(msgheader[lastIndex:])
         sendHtml(sockobj, thiscommhandle)
+    #All propagation messages of data start with MESSAGE
     elif msgheader.startswith("MESSAGE"):
         print "Recieved MESSAGE: " + msgheader
         addData(msgheader[len("MESSAGE"):])
@@ -38,6 +39,7 @@ if callfunc == 'initialize':
     else:
         port = 12345
         ip = '127.0.0.1'
+#saving the port in my context so that it can be used sendData function        
 mycontext["port"] = port
 
 #list with IPs to the other vessels
@@ -69,4 +71,3 @@ def sendData(data):
         socket = openconn(server, mycontext["port"])
         socket.send("MESSAGE" + data)
         socket.close()
-        #sleep(.5)
