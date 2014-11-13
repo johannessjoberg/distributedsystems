@@ -1,7 +1,7 @@
 def board(ip, port, sockobj, thiscommhandle, listencommhandle):
     msgheader = sockobj.recv(1024) # Receive message,
     print "Recieved msgheader: " + msgheader
-    # React depending on message type: HTTP GET or POST, or some other type of communication.
+    # React depending on message type: HTTP GET or POST, or MESSAGE.
     if msgheader.startswith( 'GET' ):
         sendHtml(sockobj, thiscommhandle)
     elif msgheader.startswith( 'POST' ):
