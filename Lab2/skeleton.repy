@@ -25,6 +25,16 @@ def sendHtml(sockobj, thiscommhandle):
         "Content-length: %i\r\n\r\n%s" % (len(htmlresponse), htmlresponse))
     stopcomm(thiscommhandle)
 
+def getNextVessel():
+    vessel = None
+    for index, ip in enumerate(mycontext["serverlist"]):
+        if ip.strip() == str(getmyip()):
+            if index == (len(mycontext["serverlist"])-1):
+                vessle =  mycontext["serverlist"][0]
+            else:
+                vessle = mycontext["serverlist"][index+2]
+    return vessle
+
 if callfunc == 'initialize':
     if len(callargs) > 1:
         raise Exception("Too many call arguments")
@@ -38,14 +48,11 @@ if callfunc == 'initialize':
     else:
         port = 12345
         ip = '127.0.0.1'
-    #randomid = randint(0,100)
-#mycontext["randomid"] = randomid + ':' + ip[:3]
-mycontext["nextvessel"] = setNextVessel()
-print "My IP: " + str(getmyip())
-#print "My random id: " + str(mycontext["randomid"])
-print "My next vessel: " + str(mycontext["nextvessel"])
 
-#saving the port in my context so that it can be used sendData function        
+print "bajs"
+print "My IP: " + str(getmyip())
+
+#saving the port in my context so that it can be used sendData function
 mycontext["port"] = port
 
 #list with IPs to the other vessels
@@ -58,6 +65,7 @@ for server in file("servers.txt"):
 #the board
 mycontext["data"] = []
 
+mycontext["nextvessel"] = getNextVessel()
 listencommhandle = waitforconn(ip,port,board)
 
 #adds parameter data to the list data(who acts as the board)
@@ -78,11 +86,3 @@ def sendData(data):
         socket = openconn(server, mycontext["port"])
         socket.send("MESSAGE" + data)
         socket.close()
-
-def setNextVessel():
-    for index, ip in enumerate(mycontext["serverlist"]):
-        if ip.strip() == str(getmyip()):
-            if index == (len(mycontext["serverlist"])-1):
-                return mycontext["serverlist"][0]
-            else:
-                return mycontext["serverlist"][index+1]
