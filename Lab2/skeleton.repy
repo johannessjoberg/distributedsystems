@@ -28,18 +28,22 @@ def sendHtml(sockobj, thiscommhandle):
 if callfunc == 'initialize':
     if len(callargs) > 1:
         raise Exception("Too many call arguments")
-
     # Running remotely (assuming that we pass input argument only remotely):
     # whenever this vessel gets a connection on its IPaddress:Clearinghouseport it'll call function board
     elif len(callargs) == 1:
         port = int(callargs[0])
         ip = getmyip()
-
   # Running locally:
   # whenever we get a connection on 127.0.0.1:12345 we'll call board
     else:
         port = 12345
         ip = '127.0.0.1'
+    #randomid = randint(0,100)
+#mycontext["randomid"] = randomid + ':' + ip[:3]
+mycontext["nextvessel"] = setNextVessel()
+print "My IP: " + str(getmyip())
+#print "My random id: " + str(mycontext["randomid"])
+print "My next vessel: " + str(mycontext["nextvessel"])
 
 #saving the port in my context so that it can be used sendData function        
 mycontext["port"] = port
@@ -74,3 +78,11 @@ def sendData(data):
         socket = openconn(server, mycontext["port"])
         socket.send("MESSAGE" + data)
         socket.close()
+
+def setNextVessel():
+    for index, ip in enumerate(mycontext["serverlist"]):
+        if ip.strip() == str(getmyip()):
+            if index == (len(mycontext["serverlist"])-1):
+                return mycontext["serverlist"][0]
+            else:
+                return mycontext["serverlist"][index+1]
