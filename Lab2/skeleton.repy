@@ -12,6 +12,8 @@ def board(ip, port, sockobj, thiscommhandle, listencommhandle):
     elif msgheader.startswith("MESSAGE"):
         print "Recieved MESSAGE: " + msgheader
         addData(msgheader[len("MESSAGE"):])
+    elif msgheader.startswith("ELECTION"):
+        election(msgheader)
 
 #sends the html on the socket
 def sendHtml(sockobj, thiscommhandle):
@@ -62,6 +64,47 @@ def loadServers():
         servers.append(server.strip())
     return servers
 
+def startElection(nextVessel):
+    print str(nextVessel) + ":" + str(mycontext["port"])
+    socket = openconn(nextVessel.strip(), mycontext["port"])
+    data = str(mycontext["electionNumber"]) + "-" + str(getmyip()) + ","
+    socket.send("ELECTION" + data)
+    socket.close()
+
+def election(message):
+    firstIndex = message.find("-") + 1
+    lastIndex = message.find(",")
+    electionStarterIp = message[firstIndex:lastIndex]
+    print "starter: " + str(electionStarterIp)
+    listOfParticipants = []
+    #starts with election => 7
+    message = message[7:]
+    #if i'm the election starter
+    if str(electionStarterIp) == str(getmyip()):
+        while len(message) > 0:
+            numberSeparator = message.find("-")
+            ipFirstSeparator = message.find("-") + 1
+            ipLastSeparator = message.find(",")
+            electionNumber = message[:numberSeparator]
+            electionIp = message[ipFirstSeparator:ipLastSeparator]
+
+            listOfParticipants.append((electionNumber,electionIp))
+
+            index = message.find(",")
+            message = message[index:]
+
+        leader = listOfParticipants[0]
+        for participant in listOfParticipants:
+            if participant[0] > leader[0]
+                leader = participant
+
+        coordination(leader[1])
+
+def coordination(leaderIp)
+    socket = openconn(nextVessel.strip(), mycontext["port"])
+    socket.send("RESULT" + leaderIp)
+    socket.close()
+        
 if callfunc == 'initialize':
     if len(callargs) > 1:
         raise Exception("Too many call arguments")
@@ -75,17 +118,18 @@ if callfunc == 'initialize':
     else:
         port = 12345
         ip = '127.0.0.1'
+    #saving the port in my context so that it can be used sendData function
+    mycontext["port"] = port
+    mycontext["serverlist"] = loadServers()
+    mycontext["electionNumber"] = randomfloat()
 
-print "My IP: " + str(getmyip())
+    #the board
+    mycontext["data"] = []
+    mycontext["nextvessel"] = getNextVessel()
+    print "next vessel: " + str(mycontext["nextvessel"])
+    print "our IP:" + str(getmyip())
 
-#saving the port in my context so that it can be used sendData function
-mycontext["port"] = port
-mycontext["serverlist"] = loadServers()
-mycontext["electionNumber"] = randomfloat()
-
-
-#the board
-mycontext["data"] = []
-mycontext["nextvessel"] = getNextVessel()
-print "next vessel: " + str(mycontext["nextvessel"])
-listencommhandle = waitforconn(ip,port,board)
+    listencommhandle = waitforconn(ip,port,board)
+    sleep(3)
+    mycontext["leader"] = None
+    startElection(mycontext["nextvessel"])
