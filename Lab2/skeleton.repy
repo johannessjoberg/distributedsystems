@@ -29,8 +29,8 @@ def getNextVessel():
     vessel = None
     index=0
     for ip in mycontext["serverlist"]:
+        print "server: " + str(index)  + "length of list: " + str(len(mycontext["serverlist"]) - 1)
         if ip.strip() == str(getmyip()):
-            print "server: " + str(index)  +str((mycontext["serverlist"]) - 1)):
             if index == (len(mycontext["serverlist"]) - 1):
                 vessle =  mycontext["serverlist"][0]
             else:
@@ -53,7 +53,7 @@ def sendData(data):
     addData(data)
     print "Sending data: " + data
     for server in mycontext["serverlist"]:
-        print "Sending data to: " + server + ":" + str(mycontext["port"])
+        print "Sending data to: " + server + ":" + str(mycontext["port"]))
         socket = openconn(server, mycontext["port"])
         socket.send("MESSAGE" + data)
         socket.close()
