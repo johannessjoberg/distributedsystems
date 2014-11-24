@@ -26,18 +26,15 @@ def sendHtml(sockobj, thiscommhandle):
     stopcomm(thiscommhandle)
 
 def getNextVessel():
-    vessel = None
     index=0
     for ip in mycontext["serverlist"]:
-        print "server: " + str(index)  + "length of list: " + str(len(mycontext["serverlist"]) - 1)
         if ip.strip() == str(getmyip()):
             if index == (len(mycontext["serverlist"]) - 1):
-                vessle =  mycontext["serverlist"][0]
+                return mycontext["serverlist"][0]
             else:
-                vessle = mycontext["serverlist"][index + 2]
+                return mycontext["serverlist"][index + 1]
         index += 1
-        print "vessle: " + str(vessel)
-    return vessle
+
 
 #adds parameter data to the list data(who acts as the board)
 def addData(data):
@@ -53,18 +50,17 @@ def sendData(data):
     addData(data)
     print "Sending data: " + data
     for server in mycontext["serverlist"]:
-        print "Sending data to: " + server + ":" + str(mycontext["port"]))
+        print "Sending data to: " + server + ":" + str(mycontext["port"])
         socket = openconn(server, mycontext["port"])
         socket.send("MESSAGE" + data)
         socket.close()
 
 #list with IPs to the other vessels
 def loadServers():
-    mycontext["serverlist"] = []
+    servers = []
     for server in file("servers.txt"):
-        #excluding our own IP from the serverlist
-        if server.strip() != str(getmyip()):
-            mycontext["serverlist"].append(server.strip())
+        servers.append(server.strip())
+    return servers
 
 if callfunc == 'initialize':
     if len(callargs) > 1:
@@ -84,13 +80,12 @@ print "My IP: " + str(getmyip())
 
 #saving the port in my context so that it can be used sendData function
 mycontext["port"] = port
+mycontext["serverlist"] = loadServers()
+mycontext["electionNumber"] = randomfloat()
 
-loadServers()
 
 #the board
 mycontext["data"] = []
-
 mycontext["nextvessel"] = getNextVessel()
+print "next vessel: " + str(mycontext["nextvessel"])
 listencommhandle = waitforconn(ip,port,board)
-
-
