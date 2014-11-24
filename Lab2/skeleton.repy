@@ -16,7 +16,7 @@ def board(ip, port, sockobj, thiscommhandle, listencommhandle):
         stopcomm(thiscommhandle)
         election(msgheader)
     elif msgheader.startswith("RESULT"):
-        setLeader(msgheader)
+        coordination(msgheader)
 
 #sends the html on the socket
 def sendHtml(sockobj, thiscommhandle):
@@ -86,41 +86,47 @@ def election(message):
     print "starter: " + str(electionStarterIp)
     listOfParticipants = []
     #starts with election => 7
-    message = message[len("ELECTION") + 1:]
+    tempMessage = message[len("ELECTION") + 1:]
     print "message from election: " + message
     #if i'm the election starter
     if str(electionStarterIp) == str(getmyip()):
-        while len(message) > 0:
-            numberSeparator = message.find("-")
-            ipFirstSeparator = message.find("-") + 1
-            ipLastSeparator = message.find(",")
-            electionNumber = message[:numberSeparator]
-            electionIp = message[ipFirstSeparator:ipLastSeparator]
+        print "ONE LOOP"
+        while len(tempMessage) > 0:
+            print "tempMessage: " + tempMessage
+            numberSeparator = tempMessage.find("-")
+            ipFirstSeparator = tempMessage.find("-") + 1
+            ipLastSeparator = tempMessage.find(",")
+            electionNumber = tempMessage[:numberSeparator]
+            electionIp = tempMessage[ipFirstSeparator:ipLastSeparator]
 
+            print "electionNumber: " + str(electionNumber) + " electionIp: " + str(electionIp)
             listOfParticipants.append((electionNumber,electionIp))
 
-            index = message.find(",")
-            message = message[index:]
+            index = tempMessage.find(",") + 1
+            tempMessage = tempMessage[index:]
 
         leader = listOfParticipants[0]
         for participant in listOfParticipants:
-            print "type:" +  type(participant[0])
-
-            print "string" + float(participant[0])
-            if float(participant[0]) > float(leader[0])
+            if float(participant[0]) > float(leader[0]):
                 leader = participant
 
-        coordination(leader[1])
+        #starts the first coordination
+        sendDataToNextVessle("RESULT" + leader[1] + "," + str(getmyip()))
     else:
         message += getMyElectionInfo() + ","
         sendDataToNextVessle(message)
 
-def setLeader(message):
-    mycontext["leader"] =  message[len("RESULT"):]
-    print "Setting leader to: " + mycontext["leader"]
+def setLeader(leaderIp):
+    mycontext["leader"] =  leaderIp
+    print "Setting leader to: " + str(leaderIp)
 
-def coordination(leaderIp):
-    sendDataToNextVessle("RESULT" + leaderIp)
+def coordination(message):
+    separator = message.find(",")
+    leaderIp = message[len("RESULT"):separator]
+    starterIp = message[separator+1:]
+    setLeader(leaderIp)
+    if str(getmyip()) != str(starterIp):
+        sendDataToNextVessle(message)
 
 if callfunc == 'initialize':
     if len(callargs) > 1:
