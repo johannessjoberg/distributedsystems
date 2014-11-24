@@ -30,7 +30,7 @@ def getNextVessel():
     index=0
     for ip in mycontext["serverlist"]:
         if ip.strip() == str(getmyip()):
-            print "server: " + str(index)  +str((mycontext["serverlist"]) - 1)):
+            print "server: " + str(index)  + str(len(mycontext["serverlist"]) - 1)
             if index == (len(mycontext["serverlist"]) - 1):
                 vessle =  mycontext["serverlist"][0]
             else:
@@ -58,6 +58,14 @@ def sendData(data):
         socket.send("MESSAGE" + data)
         socket.close()
 
+#list with IPs to the other vessels
+def loadServers():
+    mycontext["serverlist"] = []
+    for server in file("servers.txt"):
+        #excluding our own IP from the serverlist
+        if server.strip() != str(getmyip()):
+            mycontext["serverlist"].append(server.strip())
+
 if callfunc == 'initialize':
     if len(callargs) > 1:
         raise Exception("Too many call arguments")
@@ -77,12 +85,7 @@ print "My IP: " + str(getmyip())
 #saving the port in my context so that it can be used sendData function
 mycontext["port"] = port
 
-#list with IPs to the other vessels
-mycontext["serverlist"] = []
-for server in file("servers.txt"):
-    #excluding our own IP from the serverlist
-    if server.strip() != str(getmyip()):
-        mycontext["serverlist"].append(server.strip())
+loadServers()
 
 #the board
 mycontext["data"] = []
