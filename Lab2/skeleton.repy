@@ -27,46 +27,17 @@ def sendHtml(sockobj, thiscommhandle):
 
 def getNextVessel():
     vessel = None
-    for index, ip in enumerate(mycontext["serverlist"]):
+    index=0
+    for ip in mycontext["serverlist"]:
         if ip.strip() == str(getmyip()):
-            if index == (len(mycontext["serverlist"])-1):
+            print "server: " + str(index)  +str((mycontext["serverlist"]) - 1)):
+            if index == (len(mycontext["serverlist"]) - 1):
                 vessle =  mycontext["serverlist"][0]
             else:
-                vessle = mycontext["serverlist"][index+2]
+                vessle = mycontext["serverlist"][index + 2]
+        index += 1
+        print "vessle: " + str(vessel)
     return vessle
-
-if callfunc == 'initialize':
-    if len(callargs) > 1:
-        raise Exception("Too many call arguments")
-    # Running remotely (assuming that we pass input argument only remotely):
-    # whenever this vessel gets a connection on its IPaddress:Clearinghouseport it'll call function board
-    elif len(callargs) == 1:
-        port = int(callargs[0])
-        ip = getmyip()
-  # Running locally:
-  # whenever we get a connection on 127.0.0.1:12345 we'll call board
-    else:
-        port = 12345
-        ip = '127.0.0.1'
-
-print "bajs"
-print "My IP: " + str(getmyip())
-
-#saving the port in my context so that it can be used sendData function
-mycontext["port"] = port
-
-#list with IPs to the other vessels
-mycontext["serverlist"] = []
-for server in file("servers.txt"):
-    #excluding our own IP from the serverlist
-    if server.strip() != str(getmyip()):
-        mycontext["serverlist"].append(server.strip())
-
-#the board
-mycontext["data"] = []
-
-mycontext["nextvessel"] = getNextVessel()
-listencommhandle = waitforconn(ip,port,board)
 
 #adds parameter data to the list data(who acts as the board)
 def addData(data):
@@ -86,3 +57,37 @@ def sendData(data):
         socket = openconn(server, mycontext["port"])
         socket.send("MESSAGE" + data)
         socket.close()
+
+if callfunc == 'initialize':
+    if len(callargs) > 1:
+        raise Exception("Too many call arguments")
+    # Running remotely (assuming that we pass input argument only remotely):
+    # whenever this vessel gets a connection on its IPaddress:Clearinghouseport it'll call function board
+    elif len(callargs) == 1:
+        port = int(callargs[0])
+        ip = getmyip()
+  # Running locally:
+  # whenever we get a connection on 127.0.0.1:12345 we'll call board
+    else:
+        port = 12345
+        ip = '127.0.0.1'
+
+print "My IP: " + str(getmyip())
+
+#saving the port in my context so that it can be used sendData function
+mycontext["port"] = port
+
+#list with IPs to the other vessels
+mycontext["serverlist"] = []
+for server in file("servers.txt"):
+    #excluding our own IP from the serverlist
+    if server.strip() != str(getmyip()):
+        mycontext["serverlist"].append(server.strip())
+
+#the board
+mycontext["data"] = []
+
+mycontext["nextvessel"] = getNextVessel()
+listencommhandle = waitforconn(ip,port,board)
+
+
