@@ -13,7 +13,10 @@ def board(ip, port, sockobj, thiscommhandle, listencommhandle):
         print "Recieved MESSAGE: " + msgheader
         addData(msgheader[len("MESSAGE"):])
     elif msgheader.startswith("ELECTION"):
+        stopcomm(thiscommhandle)
         election(msgheader)
+    elif msgheader.startswith("RESULT"):
+        setLeader(msgheader)
 
 #sends the html on the socket
 def sendHtml(sockobj, thiscommhandle):
@@ -37,7 +40,6 @@ def getNextVessel():
                 return mycontext["serverlist"][index + 1]
         index += 1
 
-
 #adds parameter data to the list data(who acts as the board)
 def addData(data):
     mycontext["data"].append(data)
@@ -50,12 +52,11 @@ def getData():
 #also adds to own boardlist
 def sendData(data):
     addData(data)
-    print "Sending data: " + data
-    for server in mycontext["serverlist"]:
-        print "Sending data to: " + server + ":" + str(mycontext["port"])
-        socket = openconn(server, mycontext["port"])
-        socket.send("MESSAGE" + data)
-        socket.close()
+    leader = mycontext["leader"]
+    print "Sending data to leader [" + leader + "]:" + data
+    socket = openconn(server, mycontext["port"])
+    socket.send("MESSAGE" + data)
+    socket.close()
 
 #list with IPs to the other vessels
 def loadServers():
@@ -64,12 +65,19 @@ def loadServers():
         servers.append(server.strip())
     return servers
 
-def startElection(nextVessel):
-    print str(nextVessel) + ":" + str(mycontext["port"])
-    socket = openconn(nextVessel.strip(), mycontext["port"])
-    data = str(mycontext["electionNumber"]) + "-" + str(getmyip()) + ","
-    socket.send("ELECTION" + data)
+def sendDataToNextVessle(data):
+    nextvessel = mycontext["nextvessel"]
+    print "Next vessel [" + nextvessel + "]: Sending: " + data
+    socket = openconn(mycontext["nextvessel"].strip(), mycontext["port"])
+    socket.send(data)
     socket.close()
+
+def getMyElectionInfo():
+    return str(mycontext["electionNumber"]) + "-" + str(getmyip())
+
+def startElection(nextVessel):
+    data = "ELECTION" + getMyElectionInfo() + ","
+    sendDataToNextVessle(data)
 
 def election(message):
     firstIndex = message.find("-") + 1
@@ -78,7 +86,8 @@ def election(message):
     print "starter: " + str(electionStarterIp)
     listOfParticipants = []
     #starts with election => 7
-    message = message[7:]
+    message = message[len("ELECTION") + 1:]
+    print "message from election: " + message
     #if i'm the election starter
     if str(electionStarterIp) == str(getmyip()):
         while len(message) > 0:
@@ -95,16 +104,24 @@ def election(message):
 
         leader = listOfParticipants[0]
         for participant in listOfParticipants:
-            if participant[0] > leader[0]
+            print "type:" +  type(participant[0])
+
+            print "string" + float(participant[0])
+            if float(participant[0]) > float(leader[0])
                 leader = participant
 
         coordination(leader[1])
+    else:
+        message += getMyElectionInfo() + ","
+        sendDataToNextVessle(message)
 
-def coordination(leaderIp)
-    socket = openconn(nextVessel.strip(), mycontext["port"])
-    socket.send("RESULT" + leaderIp)
-    socket.close()
-        
+def setLeader(message):
+    mycontext["leader"] =  message[len("RESULT"):]
+    print "Setting leader to: " + mycontext["leader"]
+
+def coordination(leaderIp):
+    sendDataToNextVessle("RESULT" + leaderIp)
+
 if callfunc == 'initialize':
     if len(callargs) > 1:
         raise Exception("Too many call arguments")
@@ -122,6 +139,7 @@ if callfunc == 'initialize':
     mycontext["port"] = port
     mycontext["serverlist"] = loadServers()
     mycontext["electionNumber"] = randomfloat()
+    mycontext["leader"] = None
 
     #the board
     mycontext["data"] = []
