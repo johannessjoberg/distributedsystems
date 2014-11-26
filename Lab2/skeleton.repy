@@ -1,20 +1,19 @@
 def board(ip, port, sockobj, thiscommhandle, listencommhandle):
     msgheader = sockobj.recv(1024) # Receive message,
     print "Recieved msgheader: " + msgheader
-    # React depending on message type: HTTP GET or POST, or MESSAGE.
+    # React depending on message type: HTTP GET or POST, BOARD, MESSAGE or COORDINATION.
     if msgheader.startswith( 'GET' ):
         sendHtml(sockobj, thiscommhandle)
     elif msgheader.startswith( 'POST' ):
         handlePost(msgheader)
         sendHtml(sockobj, thiscommhandle)
-    #All propagation messages of data start with MESSAGE
-    elif msgheader.startswith("MESSAGE"):
-        print "Recieved MESSAGE: " + msgheader
-        addBoard(msgheader[len("MESSAGE"):])
+    elif msgheader.startswith("BOARD"):
+        print "Recieved BOARD: " + msgheader
+        addBoard(msgheader[len("BOARD"):])
     elif msgheader.startswith("ELECTION"):
         stopcomm(thiscommhandle)
         election(msgheader)
-    elif msgheader.startswith("RESULT"):
+    elif msgheader.startswith("COORDINATION"):
         coordination(msgheader)
 
 #sends the html on the socket
@@ -31,50 +30,37 @@ def sendHtml(sockobj, thiscommhandle):
         "Content-length: %i\r\n\r\n%s" % (len(htmlresponse), htmlresponse))
     stopcomm(thiscommhandle)
 
-#goes through the serverlist and returns the "neighbouring vessel"
-#if the vessel is last in the lists, it gets element 0 from the list
-def getNextVessel():
-    index=0
-    for ip in mycontext["serverlist"]:
-        if ip.strip() == str(getmyip()):
-            if index == (len(mycontext["serverlist"]) - 1):
-                return mycontext["serverlist"][0]
-            else:
-                return mycontext["serverlist"][index + 1]
-        index += 1
-
-#adds parameter data to the list data(who acts as the board)
-def addDataToBoard(data):
-    mycontext["lock"].acquire()
-    mycontext["data"].append(data)
-    mycontext["lock"].release()
-
-
-def addBoard(data):
-    mycontext["data"] = data.split(',')
-
 #return the list data(who acts as the board)
 def getData():
-    return mycontext["data"]
+    return mycontext["board"]
 
-#sends parameter data to every vessel in the list serverlist
-#also adds to own boardlist
-def sendDataToLeader(data):
-    leader = mycontext["leader"]
-    print "Sending data to leader [" + leader + "]:" + data
-    socket = openconn(leader, mycontext["port"])
+#returns a list with IPs to the other vessels
+def loadVessels():
+    vessels = []
+    for vessel in file("servers.txt"):
+        vessels.append(vessel.strip())
+    return vessels
+
+#goes through the serverlist and returns the "next" vessel
+#if the vessel is last in the list, it gets element 0 as the next vessel
+def getNextVessel():
+    index=0
+    for ip in mycontext["vessellist"]:
+        if ip.strip() == str(getmyip()):
+            if index == (len(mycontext["vessellist"]) - 1):
+                return mycontext["vessellist"][0]
+            else:
+                return mycontext["vessellist"][index + 1]
+        index += 1
+
+#sends data to the "next" vessel
+def sendDataToNextVessle(data):
+    socket = openconn(mycontext["nextvessel"].strip(), mycontext["port"])
     socket.send(data)
     socket.close()
 
-def sendBoardToAll():
-    for server in mycontext["serverlist"]:
-        print "Sending data to: " + server + ":" + str(mycontext["port"])
-        if server != getmyip().strip():
-            socket = openconn(server, mycontext["port"])
-            boardString = ",".join(getData())
-            socket.send("MESSAGE" + boardString)
-            socket.close()
-
+#handles the POST header, if leader = self, add message to board and send board to all
+#else send message to leader
 def handlePost(message):
     leader = mycontext["leader"]
     if str(leader) == str(getmyip()):
@@ -84,25 +70,52 @@ def handlePost(message):
     else:
         sendDataToLeader(message)
 
-#list with IPs to the other vessels
-def loadServers():
-    servers = []
-    for server in file("servers.txt"):
-        servers.append(server.strip())
-    return servers
-
-def sendDataToNextVessle(data):
-    socket = openconn(mycontext["nextvessel"].strip(), mycontext["port"])
+#sends data to leader
+def sendDataToLeader(data):
+    leader = mycontext["leader"]
+    print "Sending data to leader [" + leader + "]:" + data
+    socket = openconn(leader, mycontext["port"])
     socket.send(data)
     socket.close()
 
+#leader sends board to all except itself
+def sendBoardToAll():
+    for server in mycontext["vessellist"]:
+        print "Sending data to: " + server + ":" + str(mycontext["port"])
+        if server != getmyip().strip():
+            socket = openconn(server, mycontext["port"])
+            boardString = ",".join(getData())
+            socket.send("BOARD" + boardString)
+            socket.close()
+
+#adds parameter data to the board
+#makes sure the board is only accessed by one tread at a time
+def addDataToBoard(data):
+    mycontext["lock"].acquire()
+    mycontext["board"].append(data)
+    mycontext["lock"].release()
+
+#board parser
+def addBoard(data):
+    mycontext["board"] = data.split(',')
+
+#returns the random election float
 def getMyElectionInfo():
     return str(mycontext["electionNumber"]) + "-" + str(getmyip())
 
+#starts the election with sending election float and ip to the next vessel
 def startElection(nextVessel):
     data = "ELECTION" + getMyElectionInfo() + ","
     sendDataToNextVessle(data)
 
+#sets the leader
+def setLeader(leaderIp):
+    mycontext["leader"] =  leaderIp
+    print "Setting leader to: " + str(leaderIp)
+
+#checks if the vessel was the starter of the election
+#if the vessel was the starter, it calcs the results and starts the coordination
+#else passes on the election to the next vessel
 def election(message):
     firstIndex = message.find("-") + 1
     lastIndex = message.find(",")
@@ -135,19 +148,17 @@ def election(message):
         #sets the calculated leader
         setLeader(leader[1])
         #starts the first coordination
-        sendDataToNextVessle("RESULT" + leader[1] + "," + str(getmyip()))
+        sendDataToNextVessle("COORDINATION" + leader[1] + "," + str(getmyip()))
         
     else:
         message += getMyElectionInfo() + ","
         sendDataToNextVessle(message)
 
-def setLeader(leaderIp):
-    mycontext["leader"] =  leaderIp
-    print "Setting leader to: " + str(leaderIp)
-
+#checks if the vessel was the starter of the coordination
+#if not: continues the coordination
 def coordination(message):
     separator = message.find(",")
-    leaderIp = message[len("RESULT"):separator]
+    leaderIp = message[len("COORDINATION"):separator]
     starterIp = message[separator+1:]
     if str(getmyip()) != str(starterIp):
         setLeader(leaderIp)
@@ -168,18 +179,18 @@ if callfunc == 'initialize':
         ip = '127.0.0.1'
     #saving the port in my context so that it can be used sendData function
     mycontext["port"] = port
-    mycontext["serverlist"] = loadServers()
+    #gets the list of vessels in servers.txt
+    mycontext["vessellist"] = loadVessels()
     mycontext["electionNumber"] = randomfloat()
     mycontext["leader"] = None
     mycontext["lock"] = getlock()
 
     #the board
-    mycontext["data"] = []
+    mycontext["board"] = []
     mycontext["nextvessel"] = getNextVessel()
-    print "next vessel: " + str(mycontext["nextvessel"])
     print "our IP:" + str(getmyip())
 
     listencommhandle = waitforconn(ip,port,board)
+    #sleeps to make sure all gets their listencommhandle before starting the election
     sleep(5)
-    mycontext["leader"] = None
     startElection(mycontext["nextvessel"])
