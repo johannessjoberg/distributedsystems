@@ -5,13 +5,12 @@ def board(ip, port, sockobj, thiscommhandle, listencommhandle):
     if msgheader.startswith( 'GET' ):
         sendHtml(sockobj, thiscommhandle)
     elif msgheader.startswith( 'POST' ):
-        lastIndex = msgheader.rfind("comment=") + len("comment=")
-        sendData(msgheader[lastIndex:])
+        handlePost(msgheader)
         sendHtml(sockobj, thiscommhandle)
     #All propagation messages of data start with MESSAGE
     elif msgheader.startswith("MESSAGE"):
         print "Recieved MESSAGE: " + msgheader
-        addData(msgheader[len("MESSAGE"):])
+        addBoard(msgheader[len("MESSAGE"):])
     elif msgheader.startswith("ELECTION"):
         stopcomm(thiscommhandle)
         election(msgheader)
@@ -25,11 +24,15 @@ def sendHtml(sockobj, thiscommhandle):
     print "Data in board: " + data
     htmlresponse = """<!DOCTYPE html> <html> <head> <meta content="text/html; charset=utf-8" http-equiv="content-type"> <title>Blackboard Group #12</title> </head> <body> <h2> Board Content</h2> <p>"""
     htmlresponse += data
-    htmlresponse += """</p> <br> <h3>Submit to board<h3> <textarea rows="4" cols="50" name="comment" form="usrform"></textarea> <form action="" id="usrform" method="post"> <input type="submit"> </form> </body> </html>"""
+    htmlresponse += """</p> The leader is: <a href='http://"""
+    htmlresponse += mycontext["leader"] + """:""" + str(mycontext["port"]) + """'>""" + mycontext["leader"] + """</a><br>Random election float of this vessel: """ + str(mycontext["electionNumber"])
+    htmlresponse += """<h3>Submit to board<h3> <textarea rows="4" cols="50" name="comment" form="usrform"></textarea> <form action="" id="usrform" method="post"> <input type="submit"> </form> </body> </html>"""
     sockobj.send("HTTP/1.1 200 OK\r\nContent-type: text/html\r\n" + \
         "Content-length: %i\r\n\r\n%s" % (len(htmlresponse), htmlresponse))
     stopcomm(thiscommhandle)
 
+#goes through the serverlist and returns the "neighbouring vessel"
+#if the vessel is last in the lists, it gets element 0 from the list
 def getNextVessel():
     index=0
     for ip in mycontext["serverlist"]:
@@ -41,8 +44,14 @@ def getNextVessel():
         index += 1
 
 #adds parameter data to the list data(who acts as the board)
-def addData(data):
+def addDataToBoard(data):
+    mycontext["lock"].acquire()
     mycontext["data"].append(data)
+    mycontext["lock"].release()
+
+
+def addBoard(data):
+    mycontext["data"] = data.split(',')
 
 #return the list data(who acts as the board)
 def getData():
@@ -50,13 +59,30 @@ def getData():
 
 #sends parameter data to every vessel in the list serverlist
 #also adds to own boardlist
-def sendData(data):
-    addData(data)
+def sendDataToLeader(data):
     leader = mycontext["leader"]
     print "Sending data to leader [" + leader + "]:" + data
-    socket = openconn(server, mycontext["port"])
-    socket.send("MESSAGE" + data)
+    socket = openconn(leader, mycontext["port"])
+    socket.send(data)
     socket.close()
+
+def sendBoardToAll():
+    for server in mycontext["serverlist"]:
+        print "Sending data to: " + server + ":" + str(mycontext["port"])
+        if server != getmyip().strip():
+            socket = openconn(server, mycontext["port"])
+            boardString = ",".join(getData())
+            socket.send("MESSAGE" + boardString)
+            socket.close()
+
+def handlePost(message):
+    leader = mycontext["leader"]
+    if str(leader) == str(getmyip()):
+        lastIndex = message.rfind("comment=") + len("comment=")
+        addDataToBoard(message[lastIndex:])
+        sendBoardToAll()
+    else:
+        sendDataToLeader(message)
 
 #list with IPs to the other vessels
 def loadServers():
@@ -66,8 +92,6 @@ def loadServers():
     return servers
 
 def sendDataToNextVessle(data):
-    nextvessel = mycontext["nextvessel"]
-    print "Next vessel [" + nextvessel + "]: Sending: " + data
     socket = openconn(mycontext["nextvessel"].strip(), mycontext["port"])
     socket.send(data)
     socket.close()
@@ -83,35 +107,36 @@ def election(message):
     firstIndex = message.find("-") + 1
     lastIndex = message.find(",")
     electionStarterIp = message[firstIndex:lastIndex]
-    print "starter: " + str(electionStarterIp)
     listOfParticipants = []
-    #starts with election => 7
-    tempMessage = message[len("ELECTION") + 1:]
-    print "message from election: " + message
+
     #if i'm the election starter
     if str(electionStarterIp) == str(getmyip()):
         print "ONE LOOP"
-        while len(tempMessage) > 0:
-            print "tempMessage: " + tempMessage
-            numberSeparator = tempMessage.find("-")
-            ipFirstSeparator = tempMessage.find("-") + 1
-            ipLastSeparator = tempMessage.find(",")
-            electionNumber = tempMessage[:numberSeparator]
-            electionIp = tempMessage[ipFirstSeparator:ipLastSeparator]
+        #message starts with "ELECTION" => len("ELECTION") + 1
+        message = message[len("ELECTION") + 1:]
+        while len(message) > 0:
+            numberSeparator = message.find("-")
+            electionNumber = message[:numberSeparator]
 
-            print "electionNumber: " + str(electionNumber) + " electionIp: " + str(electionIp)
+            ipFirstSeparator = message.find("-") + 1
+            ipLastSeparator = message.find(",")
+            electionIp = message[ipFirstSeparator:ipLastSeparator]
+
             listOfParticipants.append((electionNumber,electionIp))
 
-            index = tempMessage.find(",") + 1
-            tempMessage = tempMessage[index:]
+            index = message.find(",") + 1
+            message = message[index:]
 
         leader = listOfParticipants[0]
         for participant in listOfParticipants:
             if float(participant[0]) > float(leader[0]):
                 leader = participant
 
+        #sets the calculated leader
+        setLeader(leader[1])
         #starts the first coordination
         sendDataToNextVessle("RESULT" + leader[1] + "," + str(getmyip()))
+        
     else:
         message += getMyElectionInfo() + ","
         sendDataToNextVessle(message)
@@ -124,8 +149,8 @@ def coordination(message):
     separator = message.find(",")
     leaderIp = message[len("RESULT"):separator]
     starterIp = message[separator+1:]
-    setLeader(leaderIp)
     if str(getmyip()) != str(starterIp):
+        setLeader(leaderIp)
         sendDataToNextVessle(message)
 
 if callfunc == 'initialize':
@@ -146,6 +171,7 @@ if callfunc == 'initialize':
     mycontext["serverlist"] = loadServers()
     mycontext["electionNumber"] = randomfloat()
     mycontext["leader"] = None
+    mycontext["lock"] = getlock()
 
     #the board
     mycontext["data"] = []
@@ -154,6 +180,6 @@ if callfunc == 'initialize':
     print "our IP:" + str(getmyip())
 
     listencommhandle = waitforconn(ip,port,board)
-    sleep(3)
+    sleep(5)
     mycontext["leader"] = None
     startElection(mycontext["nextvessel"])
