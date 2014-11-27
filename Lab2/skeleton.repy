@@ -10,7 +10,7 @@ def board(ip, port, sockobj, thiscommhandle, listencommhandle):
     #All propagation messages of data start with MESSAGE
     elif msgheader.startswith("MESSAGE"):
         print "Recieved MESSAGE: " + msgheader
-        addBoard(msgheader[len("MESSAGE"):])
+        setBoard(msgheader[len("MESSAGE"):])
     elif msgheader.startswith("ELECTION"):
         stopcomm(thiscommhandle)
         election(msgheader)
@@ -50,8 +50,10 @@ def addDataToBoard(data):
     mycontext["lock"].release()
 
 
-def addBoard(data):
+def setBoard(data):
+    mycontext["lock"].acquire()
     mycontext["data"] = data.split(',')
+    mycontext["lock"].release()
 
 #return the list data(who acts as the board)
 def getData():
@@ -75,12 +77,17 @@ def sendBoardToAll():
             socket.send("MESSAGE" + boardString)
             socket.close()
 
+
+# handles all post messages
 def handlePost(message):
     leader = mycontext["leader"]
+    # if this server is the leader it adds the new message to it's
+    # board and then sends the new full board to all servers
     if str(leader) == str(getmyip()):
         lastIndex = message.rfind("comment=") + len("comment=")
         addDataToBoard(message[lastIndex:])
         sendBoardToAll()
+    # else it sends the whole post request to the leader
     else:
         sendDataToLeader(message)
 
@@ -136,7 +143,7 @@ def election(message):
         setLeader(leader[1])
         #starts the first coordination
         sendDataToNextVessle("RESULT" + leader[1] + "," + str(getmyip()))
-        
+
     else:
         message += getMyElectionInfo() + ","
         sendDataToNextVessle(message)
