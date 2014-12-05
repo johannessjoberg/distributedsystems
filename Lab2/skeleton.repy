@@ -149,7 +149,6 @@ def election(message):
         setLeader(leader[1])
         #starts the first coordination
         sendDataToNextVessle("COORDINATION" + leader[1] + "," + str(getmyip()))
-        
     else:
         message += getMyElectionInfo() + ","
         sendDataToNextVessle(message)
