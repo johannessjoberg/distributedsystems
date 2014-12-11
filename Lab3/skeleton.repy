@@ -1,0 +1,139 @@
+def board(ip, port, sockobj, thiscommhandle, listencommhandle):
+    msgheader = sockobj.recv(1024) # Receive message,
+    print "Recieved msgheader: " + msgheader
+    # React depending on message type: HTTP GET or POST, or MESSAGE.
+    if msgheader.startswith( 'GET' ):
+        sendHtml(sockobj, thiscommhandle)
+    elif msgheader.startswith( 'POST' ):
+        postMessage(msgheader)
+        sendHtml(sockobj, thiscommhandle)
+    #All propagation messages of data start with MESSAGE
+    elif msgheader.startswith("MESSAGE"):
+        print "Recieved MESSAGE: " + msgheader
+        handleMessage(msgheader[len("MESSAGE"):])
+
+def postMessage(msgheader):
+    lastIndex = msgheader.rfind("comment=") + len("comment=")
+    sendDataToAllVessels(msgheader[lastIndex:])
+
+#sends parameter data to every vessel in the list vessellist
+#also adds to own boardlist
+def sendDataToAllVessels(data):
+    message = data + "," + str(mycontext["sequence"]) + "," + str(getmyip())
+    print "Sending data: " + message
+    setBoard(message)
+    mycontext["sequence"] = mycontext["sequence"] + 1
+    for vessel in mycontext["vessellist"]:
+        print "Sending data to: " + vessel + ":" + str(mycontext["port"])
+        socket = openconn(vessel, mycontext["port"])
+        socket.send("MESSAGE" + message)
+        socket.close()
+
+#sends the html on the socket
+def sendHtml(sockobj, thiscommhandle):
+    #adding linebreak to every post in the board
+    data = "<br>".join(getBoard())
+    print "Data in board: " + data
+    htmlresponse = """<!DOCTYPE html> <html> <head> <meta content="text/html; charset=utf-8" http-equiv="content-type"> <title>Blackboard Group #12</title> </head> <body> <h2> Board Content</h2> <p>"""
+    htmlresponse += data
+    htmlresponse += """</p> <br> <h3>Submit to board<h3> <textarea rows="4" cols="50" name="comment" form="usrform"></textarea> <form action="" id="usrform" method="post"> <input type="submit"> </form> </body> </html>"""
+    sockobj.send("HTTP/1.1 200 OK\r\nContent-type: text/html\r\n" + \
+        "Content-length: %i\r\n\r\n%s" % (len(htmlresponse), htmlresponse))
+    stopcomm(thiscommhandle)
+
+#returns a list with IPs to the other vessels
+def loadVessels():
+    vessels = []
+    for vessel in file("servers.txt"):
+        if vessel.strip() != str(getmyip()):
+            vessels.append(vessel.strip())
+    return vessels
+
+#adds parameter message to the list board
+def setBoard(message):
+    textSeparator = message.find(",")
+    text = message[:textSeparator]
+
+    firstSequenceSeparator = message.find(",") + 1
+    lastSequenceSeparator = message.rfind(",")
+    sequence = message[firstSequenceSeparator:lastSequenceSeparator]
+
+    ipSeparator = message.rfind(",")
+    ip = message[ipSeparator:]
+
+    mycontext["board"].append((text,sequence,ip))
+    mycontext["board"] = mergesort(mycontext["board"])
+    mycontext["board"] = mycontext["board"][::-1]
+
+#sorts the list depending on the sequence variable
+#if they have the sequence value, it's sort depending on the ip
+def mergesort(x):
+    result = []
+    if len(x) < 2:
+        return x
+    mid = int(len(x)/2)
+    y = msort4(x[:mid])
+    z = msort4(x[mid:])
+    i = 0
+    j = 0
+    while i < len(y) and j < len(z):
+            if y[i][1] > z[j][1]:
+                result.append(z[j])
+                j += 1
+            elif y[i][1] == z[j][1]:
+                ip1 = y[i][2].replace(".","")
+                ip2 = z[j][2].replace(".","")
+                if ip1 > ip2:
+                    j += 1
+            else:
+                result.append(y[i])
+                i += 1
+    result += y[i:]
+    result += z[j:]
+    return result
+
+#return the list board
+def getBoard():
+    textBoard = []
+    for tuple in mycontext["board"]:
+        textBoard.append(tuple[0])
+    return textBoard
+
+def handleMessage(message):
+    print "Handle message: " + message
+    setBoard(message)
+    firstIndex = message.find(",") + 1
+    lastIndex = message.rfind(",")
+    sequence = int(message[firstIndex:lastIndex])
+    print "Sequence: " + str(sequence)
+    if sequence >= mycontext["sequence"]:
+        mycontext["sequence"] = sequence + 1
+
+if callfunc == 'initialize':
+    if len(callargs) > 1:
+        raise Exception("Too many call arguments")
+
+    # Running remotely (assuming that we pass input argument only remotely):
+    # whenever this vessel gets a connection on its IPaddress:Clearinghouseport it'll call function board
+    elif len(callargs) == 1:
+        port = int(callargs[0])
+        ip = getmyip()
+
+  # Running locally:
+  # whenever we get a connection on 127.0.0.1:12345 we'll call board
+    else:
+        port = 12345
+        ip = '127.0.0.1'
+
+#saving the port in my context so that it can be used sendData function        
+mycontext["port"] = port
+
+#list with IPs to the other vessels
+mycontext["vessellist"] = loadVessels()
+
+#the board
+mycontext["board"] = []
+
+mycontext["sequence"] = 0
+
+listencommhandle = waitforconn(ip,port,board)
