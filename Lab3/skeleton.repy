@@ -5,6 +5,7 @@ def board(ip, port, sockobj, thiscommhandle, listencommhandle):
     if msgheader.startswith( 'GET' ):
         sendHtml(sockobj, thiscommhandle)
     elif msgheader.startswith( 'POST' ):
+        print "POST: " + msgheader
         postMessage(msgheader)
         sendHtml(sockobj, thiscommhandle)
     #All propagation messages of data start with MESSAGE
@@ -72,8 +73,8 @@ def mergesort(x):
     if len(x) < 2:
         return x
     mid = int(len(x)/2)
-    y = msort4(x[:mid])
-    z = msort4(x[mid:])
+    y = mergesort(x[:mid])
+    z = mergesort(x[mid:])
     i = 0
     j = 0
     while i < len(y) and j < len(z):
