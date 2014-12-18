@@ -1,7 +1,6 @@
 #!/bin/bash
 
-port=63150
-process='johannes'
+port=63171
 #loop through vessles
 counter=1
 
@@ -11,7 +10,7 @@ do
     while read line
     do
             echo "starting curl to ${line}"
-            curl --silent --request POST $line:$port -d comment="${process}: messsage #${counter}"
+            curl --silent --request POST $line:$port -d comment="messsage #${counter}"
             echo "done curling to ${line}"
             counter=$((counter+1))
     done < servers.txt
