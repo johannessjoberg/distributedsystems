@@ -11,7 +11,7 @@ do
     while read line
     do
             echo "starting curl to ${line}"
-            curl --silent --request POST $line:$port -d comment="${process}: messsage #${counter}"
+            curl --silent --request POST $line:$port -d comment="${process}: messsage number ${counter}"
             echo "done curling to ${line}"
             counter=$((counter+1))
     done < servers.txt

@@ -1,32 +1,32 @@
 def board(ip, port, sockobj, thiscommhandle, listencommhandle):
     msgheader = sockobj.recv(1024) # Receive message,
-    print "Recieved msgheader: " + msgheader
     # React depending on message type: HTTP GET or POST, or MESSAGE.
     if msgheader.startswith( 'GET' ):
         sendHtml(sockobj)
         stopcomm(thiscommhandle)
     elif msgheader.startswith( 'POST' ):
-        print "POST: " + msgheader
-        sequenceNumber = getNextSequenceNumber()
+        sequenceNumber = getAndIncrementSequenceNumber()
         #sendHtml(sockobj, thiscommhandle)
         postMessage(msgheader, sequenceNumber)
         stopcomm(thiscommhandle)
-        
     #All propagation messages of data start with MESSAGE
     elif msgheader.startswith("MESSAGE"):
+        stopcomm(thiscommhandle)
         print "Recieved MESSAGE: " + msgheader
         handleMessage(msgheader[len("MESSAGE"):])
-        stopcomm(thiscommhandle)
+        
 
 def postMessage(msgheader, sequenceNumber):
     lastIndex = msgheader.rfind("comment=") + len("comment=")
+    print "POSTING: " + msgheader[lastIndex:]
     sendDataToAllVessels(msgheader[lastIndex:], sequenceNumber)
 
-def getNextSequenceNumber():   
+def getAndIncrementSequenceNumber():
     mycontext["sequencelock"].acquire()
     mycontext["sequence"] = mycontext["sequence"] + 1
+    sequence = mycontext["sequence"]
     mycontext["sequencelock"].release()
-    return mycontext["sequence"]
+    return sequence
 
 def updateNextSequenceNumber(lastKnown):
     mycontext["sequencelock"].acquire()
@@ -75,9 +75,11 @@ def setBoard(message):
     ipSeparator = message.rfind(",") + 1
     ip = message[ipSeparator:]
 
+    mycontext["boardlock"].acquire()
     mycontext["board"].append((text,sequence,ip))
     mycontext["board"] = mergesort(mycontext["board"])
     mycontext["board"] = mycontext["board"][::-1]
+    mycontext["boardlock"].release()
 
 #sorts the list depending on the sequence variable
 #if they have the sequence value, it's sort depending on the ip
@@ -100,6 +102,9 @@ def mergesort(x):
                 if int(ip1) > int(ip2):
                     result.append(z[j])
                     j += 1
+                else:
+                    result.append(y[i])
+                    i += 1
             else:
                 result.append(y[i])
                 i += 1
@@ -142,11 +147,11 @@ mycontext["port"] = port
 
 #list with IPs to the other vessels
 mycontext["vessellist"] = loadVessels()
-
 mycontext["sequencelock"] = getlock()
-
+mycontext["boardlock"] = getlock()
 #the board
 mycontext["board"] = []
+mycontext["sortedboard"] = []
 
 mycontext["sequence"] = 0
 
