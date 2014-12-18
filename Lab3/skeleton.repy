@@ -10,14 +10,14 @@ def board(ip, port, sockobj, thiscommhandle, listencommhandle):
         sequenceNumber = getAndIncrementSequenceNumber()
         #sendHtml(sockobj, thiscommhandle) // stripped because not needed when using bash script
         postMessage(msgheader, sequenceNumber)
-        mycontext["messages_recieved"] = mycontext["messages_recieved"] + 1
+        #mycontext["messages_recieved"] = mycontext["messages_recieved"] + 1
 
     #All propagation messages of data start with MESSAGE
     elif msgheader.startswith("MESSAGE"):
         stopcomm(thiscommhandle)
         print "Recieved MESSAGE: " + msgheader
         handleMessage(msgheader[len("MESSAGE"):])
-        mycontext["messages_recieved"] = mycontext["messages_recieved"] + 1
+        #mycontext["messages_recieved"] = mycontext["messages_recieved"] + 1
 
     #measure stuff for the graph
     messages_recieved = mycontext["messages_recieved"]
