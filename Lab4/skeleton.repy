@@ -1,55 +1,166 @@
 def board(ip, port, sockobj, thiscommhandle, listencommhandle):
-    msgheader = sockobj.recv(1024) # Receive message,
-    # React depending on message type: HTTP GET or POST, or MESSAGE.
+    msgheader = sockobj.recv(1024) # Receive message,.
     if msgheader.startswith('GET'):
         sendHtml(sockobj)
         stopcomm(thiscommhandle)
 
     elif msgheader.startswith('POST'):
+        postHandler(msgheader)
+        sendHtml(sockobj, thiscommhandle)
         stopcomm(thiscommhandle)
-        sequenceNumber = getAndIncrementSequenceNumber()
-        #sendHtml(sockobj, thiscommhandle)
-        postMessage(msgheader, sequenceNumber)
-        mycontext["messages_recieved"] = mycontext["messages_recieved"] + 1
 
-    #All propagation messages of data start with MESSAGE
-    elif msgheader.startswith("MESSAGE"):
+    elif msgheader.startswith("GETBOARD"):
         stopcomm(thiscommhandle)
         print "Recieved MESSAGE: " + msgheader
-        handleMessage(msgheader[len("MESSAGE"):])
-        mycontext["messages_recieved"] = mycontext["messages_recieved"] + 1
+        getBoardHandler(msgheader[len("GETBOARD"):])
 
-    messages_recieved = mycontext["messages_recieved"]
-    expected_messages = mycontext["expected_messages"]
-    print "Recieved " + str(messages_recieved) + " of "  + str(expected_messages) 
-    print "starttime" + str(mycontext["starttime"])
-    print "endtime" + str(getruntime())
+    elif msgheader.startswith("WRITEBOARD"):
+        #write to board
+
+    elif msgheader.startswith("WRITELOCK"):
+        writeLockHandler(ip, port, sockobj)
+        stopcomm(thiscommhandle)
+
+    elif msgheader.startswith("WRITEUNLOCK"):
+        writeUnlockHandler(ip)
+        stopcomm(thiscommhandle)
+
+    else:
+        print "Kaoz"
+
+def getHandler():
+    #read N/2 vessels -> readBoards
+    #return html
+
+def postHandler(message):
+
+    #lock N/2+1 vessels
+    lockVessels()
+
+    mycontext["readlock"].acquire()
+    #read N/2 vessels -> updateBoard
+    mycontext["board"] = getUpdatedBoard()
+    #add message
+    mycontext["board"].append(message)
+
+    mycontext["readlock"].release()
+
+    #write to boards
+
+    #unlock vessels
+    unlockVessels()
+
+def getBoardHandler():
+    #lock board
+    #read board
+    #unlock board
+    #return board
+
+def writeBoardHandler(board):
+    #lock board
+    #write board
+    #unlock board
+
+def writeToBoards():
 
 
-def postMessage(msgheader, sequenceNumber):
+def writeLockHandler(ip, sockobj):
+    if(mycontext['writelock'].acquire(False)):
+        mycontext["iplockorigin"] = ip
+        sockobj.send("success")
+    else:
+        sockobj.send("failed")
+
+def writeUnlockHandler(ip):
+    if(ip == mycontext["iplockorigin"]):
+        mycontext['writelock'].release()
+
+def lockVessels():
+    for vessel in range(0, len(mycontext["vessellist"])/2 + 1):
+        if(mycontext["vessellist"][vessel] != mycontext["ip"]):
+            lock(mycontext["vessellist"][vessel])
+        else:
+            mycontext["writelock"].acquire()
+
+def unlockVessels():
+    for vessel in range(0, len(mycontext["vessellist"])/2 + 1):
+        if(mycontext["vessellist"][vessel] != mycontext["ip"]):
+            unlock(mycontext["vessellist"][vessel])
+        else:
+            mycontext["writelock"].release()
+
+def lock(vesselIp):
+    #lock vessel
+    port = mycontext["port"]
+    locked = False
+    try:
+        while(!locked):
+            socket = openconn(vesselIp, port)
+            socket.send("WRITELOCK")
+            callback = socket.recv(512)
+            if(str(callback) == "success")
+                locked = True
+            socket.close()
+    except Exception, e:
+        print str(e)
+
+def unlock(vesselIp):
+    #unlock vessel
+    port = mycontext["port"]
+    try:
+        socket = openconn(vesselIp, port)
+        socket.send("WRITEUNLOCK")
+        socket.close()
+    except Exception, e:
+        print str(e)
+
+def getUpdatedBoard():
+    board = mycontext["board"]
+    #reads N/2 boards to select newest
+    for vessel in range(0, len(mycontext["vessellist"])/2 + 1):
+        vesselBoard = getVesselBoard(mycontext["vessellist"][vessel])
+        if len(vesselBoard) > len(board))
+            board = vesselBoard
+
+    return board
+
+def getVesselBoard(vesselIp):
+    port = mycontext["port"]
+    board = []
+    try:
+        socket = openconn(vesselIp, port)
+        socket.send("GETBOARD")
+        board = tempsocket.recv(1024)
+        socket.close()
+    except Exception, e:
+        print str(e)
+
+    return board.split(",")
+    
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+def postMessage(msgheader):
     lastIndex = msgheader.rfind("comment=") + len("comment=")
     print "POSTING: " + msgheader[lastIndex:]
     sendDataToAllVessels(msgheader[lastIndex:], sequenceNumber)
 
 
-def getAndIncrementSequenceNumber():
-    mycontext["sequencelock"].acquire()
-    mycontext["sequence"] = mycontext["sequence"] + 1
-    sequence = mycontext["sequence"]
-    mycontext["sequencelock"].release()
-    return sequence
-
-
-def updateNextSequenceNumber(lastKnown):
-    mycontext["sequencelock"].acquire()
-    if lastKnown > mycontext["sequence"]:
-        mycontext["sequence"] = lastKnown
-    mycontext["sequencelock"].release()
-
-
 # sends parameter data to every vessel in the list vessellist
 # also adds to own boardlist
-def sendDataToAllVessels(data, sequenceNumber):
+def sendDataToAllVessels(data):
     message = data + "," + str(sequenceNumber) + "," + str(getmyip())
     print "Sending data: " + message
     setBoard(message)
@@ -62,9 +173,9 @@ def sendDataToAllVessels(data, sequenceNumber):
 # sends the html on the socket
 def sendHtml(sockobj):
     #adding linebreak to every post in the board
-    data = "<br>".join(getBoard())
+    board = "<br>".join(getBoard())
     htmlresponse = """<!DOCTYPE html> <html> <head> <meta content="text/html; charset=utf-8" http-equiv="content-type"> <title>Blackboard Group #12</title> </head> <body> <h2> Board Content</h2> <p>"""
-    htmlresponse += data
+    htmlresponse += board
     htmlresponse += """</p> <br> <h3>Submit to board<h3> <textarea rows="4" cols="50" name="comment" form="usrform"></textarea> <form action="" id="usrform" method="post"> <input type="submit"> </form> </body> </html>"""
     sockobj.send("HTTP/1.1 200 OK\r\nContent-type: text/html\r\n" + \
         "Content-length: %i\r\n\r\n%s" % (len(htmlresponse), htmlresponse))
@@ -97,39 +208,6 @@ def setBoard(message):
     mycontext["board"] = mycontext["board"][::-1]
     mycontext["boardlock"].release()
 
-
-# sorts the list depending on the sequence variable
-# if they have the sequence value, it's sort depending on the ip
-def mergesort(x):
-    result = []
-    if len(x) < 2:
-        return x
-    mid = int(len(x)/2)
-    y = mergesort(x[:mid])
-    z = mergesort(x[mid:])
-    i = 0
-    j = 0
-    while i < len(y) and j < len(z):
-            if int(y[i][1]) > int(z[j][1]):
-                result.append(z[j])
-                j += 1
-            elif int(y[i][1]) == int(z[j][1]):
-                ip1 = y[i][2].replace(".","")
-                ip2 = z[j][2].replace(".","")
-                if int(ip1) > int(ip2):
-                    result.append(z[j])
-                    j += 1
-                else:
-                    result.append(y[i])
-                    i += 1
-            else:
-                result.append(y[i])
-                i += 1
-    result += y[i:]
-    result += z[j:]
-    return result
-
-
 # return the list board
 def getBoard():
     textBoard = []
@@ -142,8 +220,6 @@ def handleMessage(message):
     setBoard(message)
     firstIndex = message.find(",") + 1
     lastIndex = message.rfind(",")
-    sequence = int(message[firstIndex:lastIndex])
-    updateNextSequenceNumber(sequence)
 
 if callfunc == 'initialize':
     if len(callargs) > 1:
@@ -161,19 +237,17 @@ if callfunc == 'initialize':
         port = 12345
         ip = '127.0.0.1'
 
+mycontext["ip"] = ip
 # saving the port in my context so that it can be used sendData function
 mycontext["port"] = port
-
 # list with IPs to the other vessels
 mycontext["vessellist"] = loadVessels()
-mycontext["sequencelock"] = getlock()
-mycontext["boardlock"] = getlock()
+#ip of the write lock origin
+mycontext["iplockorigin"] = ""
+#locks
+mycontext["writelock"] = getlock()
+mycontext["readlock"] = getlock()
 # the board
 mycontext["board"] = []
-mycontext["sortedboard"] = []
 
-mycontext["sequence"] = 0
-mycontext["starttime"] = getruntime()
-mycontext["expected_messages"] = (len(mycontext["vessellist"]) + 1) * 3
-mycontext["messages_recieved"] = 0
 listencommhandle = waitforconn(ip,port,board)
