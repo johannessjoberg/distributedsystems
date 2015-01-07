@@ -1,6 +1,6 @@
 #!/bin/bash
 
-port=63171
+port=63150
 #loop through vessles
 counter=1
 

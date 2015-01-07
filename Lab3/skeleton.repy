@@ -8,30 +8,32 @@ def board(ip, port, sockobj, thiscommhandle, listencommhandle):
     elif msgheader.startswith('POST'):
         stopcomm(thiscommhandle)
         sequenceNumber = getAndIncrementSequenceNumber()
-        #sendHtml(sockobj, thiscommhandle)
+        #sendHtml(sockobj, thiscommhandle) // stripped because not needed when using bash script
         postMessage(msgheader, sequenceNumber)
-        mycontext["messages_recieved"] = mycontext["messages_recieved"] + 1
+        #mycontext["messages_recieved"] = mycontext["messages_recieved"] + 1
 
     #All propagation messages of data start with MESSAGE
     elif msgheader.startswith("MESSAGE"):
         stopcomm(thiscommhandle)
         print "Recieved MESSAGE: " + msgheader
         handleMessage(msgheader[len("MESSAGE"):])
-        mycontext["messages_recieved"] = mycontext["messages_recieved"] + 1
+        #mycontext["messages_recieved"] = mycontext["messages_recieved"] + 1
 
+    #measure stuff for the graph
     messages_recieved = mycontext["messages_recieved"]
     expected_messages = mycontext["expected_messages"]
     print "Recieved " + str(messages_recieved) + " of "  + str(expected_messages) 
     print "starttime" + str(mycontext["starttime"])
     print "endtime" + str(getruntime())
 
-
+#just stipps the message and remove some lines from the board func
 def postMessage(msgheader, sequenceNumber):
     lastIndex = msgheader.rfind("comment=") + len("comment=")
     print "POSTING: " + msgheader[lastIndex:]
     sendDataToAllVessels(msgheader[lastIndex:], sequenceNumber)
 
-
+#used when posting to increment and get the sequence number
+#the manipulation of the sequence number is locked, so only tread can manipulate and fetch it
 def getAndIncrementSequenceNumber():
     mycontext["sequencelock"].acquire()
     mycontext["sequence"] = mycontext["sequence"] + 1
@@ -39,7 +41,8 @@ def getAndIncrementSequenceNumber():
     mycontext["sequencelock"].release()
     return sequence
 
-
+#used when recieved a message to increment the logical clock or "sequence number"
+#the manipulation of the sequence number is locked, so only tread can manipulate it
 def updateNextSequenceNumber(lastKnown):
     mycontext["sequencelock"].acquire()
     if lastKnown > mycontext["sequence"]:
@@ -47,11 +50,10 @@ def updateNextSequenceNumber(lastKnown):
     mycontext["sequencelock"].release()
 
 
-# sends parameter data to every vessel in the list vessellist
-# also adds to own boardlist
+#add data to own board, sends data to all other vessels
 def sendDataToAllVessels(data, sequenceNumber):
     message = data + "," + str(sequenceNumber) + "," + str(getmyip())
-    print "Sending data: " + message
+    #sets own board
     setBoard(message)
     for vessel in mycontext["vessellist"]:
         socket = openconn(vessel, mycontext["port"])
@@ -79,7 +81,8 @@ def loadVessels():
     return vessels
 
 
-# adds parameter message to the list board
+# adds the parameter message to the list board, and sorts the list
+# this is the only place the board is manipulated, and its locked during all manipulation
 def setBoard(message):
     textSeparator = message.find(",")
     text = message[:textSeparator]
@@ -100,6 +103,7 @@ def setBoard(message):
 
 # sorts the list depending on the sequence variable
 # if they have the sequence value, it's sort depending on the ip
+# the sorting of the ip depends on the numberical value of the ip when dots are removed
 def mergesort(x):
     result = []
     if len(x) < 2:
@@ -137,7 +141,7 @@ def getBoard():
         textBoard.append("Sequence number: " + str(tuple[1]) + "message: " + tuple[0] + "ip: " + str(tuple[2]))
     return textBoard
 
-
+#passes the message to setBoard, and passes the sequence number in the message to updateNextSequenceNumber
 def handleMessage(message):
     setBoard(message)
     firstIndex = message.find(",") + 1
@@ -166,14 +170,20 @@ mycontext["port"] = port
 
 # list with IPs to the other vessels
 mycontext["vessellist"] = loadVessels()
+
+#one lock for the sequence number and one for the board
 mycontext["sequencelock"] = getlock()
 mycontext["boardlock"] = getlock()
+
 # the board
 mycontext["board"] = []
-mycontext["sortedboard"] = []
 
+# initiate sequence number
 mycontext["sequence"] = 0
+
+#measure stuff for the graph
 mycontext["starttime"] = getruntime()
 mycontext["expected_messages"] = (len(mycontext["vessellist"]) + 1) * 3
 mycontext["messages_recieved"] = 0
+
 listencommhandle = waitforconn(ip,port,board)
